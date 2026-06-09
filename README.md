@@ -184,6 +184,12 @@ O **EasyPanel** é baseado no Docker Swarm e gerencia o Traefik como roteador de
      - Configure a **Porta da Aplicação** como `80`.
      - Defina o seu subdomínio de produção desejado (o EasyPanel configurará automaticamente o Traefik e gerará o certificado SSL).
 5. **Realizar Deploy**: O EasyPanel executará o build multi-stage baseado no Dockerfile da raiz e fará o deploy sem indisponibilidade.
+6. **Executar as Migrations**:
+   - Com a aplicação online, vá na aba **Console** da aplicação no EasyPanel e execute:
+     ```bash
+     npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
+     ```
+
 
 ---
 
