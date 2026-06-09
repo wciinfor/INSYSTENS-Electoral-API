@@ -1,0 +1,37 @@
+# Node / NPM
+node_modules
+npm-debug.log
+yarn-error.log
+
+# IDEs / Editors
+.vscode
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Build output
+dist
+build
+.next
+out
+
+# Local config / databases
+.env
+.env.local
+.env.production
+tse
+data
+backups
+*.db
+*.sqlite
+
+# Git / Docker
+.git
+.dockerignore
+docker-compose*.yml
+Dockerfile
+README.md
+VPS_SETUP_PLAN.md

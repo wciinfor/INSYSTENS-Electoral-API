@@ -1,0 +1,183 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Election {
+  id          String        @id @default(uuid())
+  year        Int
+  round       Int
+  type        String        // Ex: "FEDERAL", "MUNICIPAL"
+  description String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  candidates  Candidate[]
+  sectionVotes SectionVote[]
+
+  // Constraint para evitar duplicidade de eleição por ano/turno/tipo
+  @@unique([year, round, type])
+  @@index([year])
+}
+
+model Candidate {
+  id              String        @id @default(uuid())
+  electionId      String
+  election        Election      @relation(fields: [electionId], references: [id])
+  electoralNumber String
+  candidateName   String
+  urnName         String
+  role            String        // Ex: "PREFEITO", "VEREADOR"
+  officeCode      Int?
+  officeName      String?
+  uf              String        // Sigla do estado (ex: "SP")
+  partyName       String
+  partyNumber     Int
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  sectionVotes    SectionVote[]
+
+  // Constraint para evitar duplicidade de candidato por eleição/número/cargo
+  @@unique([electionId, electoralNumber, role])
+  // Índices para consultas otimizadas
+  @@index([uf])
+  @@index([electionId])
+}
+
+model PollingLocation {
+  id           String             @id @default(uuid())
+  uf           String             // Sigla do estado
+  cityName     String             // Nome do município
+  zoneNumber   Int                // Número da zona eleitoral
+  locationCode Int                // Código do local de votação
+  name         String
+  address      String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  sections     ElectoralSection[]
+
+  // Constraint para evitar duplicidade de local por UF/município/zona/código do local
+  @@unique([uf, cityName, zoneNumber, locationCode])
+  // Índices para consultas otimizadas
+  @@index([uf])
+  @@index([cityName])
+  @@index([zoneNumber])
+}
+
+model ElectoralSection {
+  id                String          @id @default(uuid())
+  pollingLocationId String
+  pollingLocation   PollingLocation @relation(fields: [pollingLocationId], references: [id])
+  uf                String
+  cityName          String
+  zoneNumber        Int
+  sectionNumber     Int             // Número da seção eleitoral
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  sectionVotes      SectionVote[]
+
+  // Constraint para evitar duplicidade de seção por UF/município/zona/seção
+  @@unique([uf, cityName, zoneNumber, sectionNumber])
+  // Índices para consultas otimizadas
+  @@index([uf])
+  @@index([cityName])
+  @@index([zoneNumber])
+  @@index([sectionNumber])
+}
+
+model SectionVote {
+  id                 String           @id @default(uuid())
+  electionId         String
+  election           Election         @relation(fields: [electionId], references: [id])
+  candidateId        String?
+  candidate          Candidate?       @relation(fields: [candidateId], references: [id])
+  electoralSectionId String
+  electoralSection   ElectoralSection @relation(fields: [electoralSectionId], references: [id])
+  votesCount         Int
+  officeCode         Int
+  officeName         String
+  votableTypeCode    Int?
+  votableType        String           // Ex: "NOMINAL", "LEGENDA", "BRANCO", "NULO", "ANULADO"
+  votableNumber      String?
+  votableName        String?
+  partyNumber        Int?
+  partyAcronym       String?
+  partyName          String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  // Constraint para evitar duplicidade de votos por eleição/seção/cargo/tipo/número
+  @@unique([electionId, electoralSectionId, officeCode, votableType, votableNumber])
+  // Índices para consultas otimizadas
+  @@index([electionId, officeCode])
+  @@index([electionId, candidateId])
+  @@index([electionId, officeCode, votableType])
+  @@index([electionId, officeCode, votableNumber])
+}
+
+model ImportJob {
+  id               String        @id @default(uuid())
+  status           String        // Ex: "PENDING", "PROCESSING", "COMPLETED", "FAILED"
+  filename         String
+  fileType         String        // Ex: "CANDIDATOS", "VOTOS_SECAO"
+  totalRecords     Int           @default(0)
+  processedRecords Int           @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  errors           ImportError[]
+}
+
+model ImportError {
+  id           String    @id @default(uuid())
+  importJobId  String
+  importJob    ImportJob @relation(fields: [importJobId], references: [id])
+  rowNumber    Int
+  errorDetails String
+  rawData      String?
+  createdAt    DateTime  @default(now())
+}
+
+model ApiKey {
+  id         String   @id @default(uuid())
+  clientName String
+  keyHash    String   @unique
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model SectionElectorateProfile {
+  id                    String   @id @default(uuid())
+  electionYear          Int
+  uf                    String
+  cityCode              Int
+  cityName              String
+  zoneNumber            Int
+  sectionNumber         Int
+  pollingLocationCode   Int
+  genderCode            Int?
+  gender                String?
+  ageRangeCode          String?
+  ageRange              String?
+  educationCode         Int?
+  education             String?
+  raceCode              Int?
+  race                  String?
+  maritalStatusCode     Int?
+  maritalStatus         String?
+  voteObligationType    String?
+  votersCount           Int
+  biometricVotersCount  Int
+  disabledVotersCount   Int
+  socialNameVotersCount Int
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Índices para consultas otimizadas
+  @@index([uf, cityName])
+  @@index([zoneNumber, sectionNumber])
+  @@index([electionYear])
+}

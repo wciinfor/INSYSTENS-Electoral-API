@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  electoral-postgres:
+    image: postgres:16-alpine
+    container_name: electoral-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-electoral_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-insystens_electoral}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-electoral_user} -d $${POSTGRES_DB:-insystens_electoral}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Porta 5432 NÃO exposta publicamente
+    networks:
+      - electoral-net
+
+#   electoral-redis:
+#     image: redis:7-alpine
+#     container_name: electoral-redis
+#     restart: always
+#     command: redis-server --appendonly yes
+#     volumes:
+#       - redis_data:/data
+#     healthcheck:
+#       test: ["CMD", "redis-cli", "ping"]
+#       interval: 10s
+#       timeout: 5s
+#       retries: 5
+#     networks:
+#       - electoral-net
+
+  electoral-api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: electoral-api
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-electoral_user}:${POSTGRES_PASSWORD}@electoral-postgres:5432/${POSTGRES_DB:-insystens_electoral}?schema=public
+      # REDIS_URL: redis://electoral-redis:6379
+      PORT: 3001
+      API_KEY_SECRET: ${API_KEY_SECRET}
+    depends_on:
+      electoral-postgres:
+        condition: service_healthy
+#       electoral-redis:
+#         condition: service_healthy
+    networks:
+      - electoral-net
+
+volumes:
+  postgres_data:
+#   redis_data:
+
+networks:
+  electoral-net:
+    driver: bridge

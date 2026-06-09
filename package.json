@@ -1,0 +1,32 @@
+{
+  "name": "electoral-api-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plataforma de inteligência eleitoral (TSE) para integração com MANDATOPRO",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @electoral-api/api",
+    "build": "npm run build -w @electoral-api/api",
+    "start": "npm run start -w @electoral-api/api",
+    "lint": "npm run lint -w @electoral-api/api",
+    "typecheck": "npm run typecheck -w @electoral-api/api",
+    "prisma:generate": "npm run prisma:generate -w @electoral-api/api",
+    "prisma:migrate": "npm run prisma:migrate -w @electoral-api/api",
+    "prisma:studio": "npm run prisma:studio -w @electoral-api/api",
+    "importer:dev": "npm run dev -w @electoral-api/importer",
+    "importer:build": "npm run build -w @electoral-api/importer",
+    "importer:start": "npm run start -w @electoral-api/importer"
+  },
+  "keywords": [
+    "tse",
+    "electoral",
+    "api",
+    "fastify",
+    "typescript"
+  ],
+  "author": "INSYSTENS",
+  "license": "ISC"
+}
