@@ -1,92 +1,177 @@
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["tse", "mandato", "analytics", "public"]
 }
 
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  binaryTargets   = ["native", "debian-openssl-3.0.x"]
+}
+
+// ==========================================
+// SCHEMA: public
+// ==========================================
+
+model ImportJob {
+  id               String        @id @default(uuid())
+  status           String        // Ex: "PENDING", "PROCESSING", "COMPLETED", "FAILED"
+  filename         String
+  fileType         String        // Ex: "CANDIDATOS", "VOTOS_SECAO"
+  totalRecords     Int           @default(0)
+  processedRecords Int           @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  errors           ImportError[]
+
+  @@schema("public")
+}
+
+model ImportError {
+  id           String    @id @default(uuid())
+  importJobId  String
+  importJob    ImportJob @relation(fields: [importJobId], references: [id])
+  rowNumber    Int
+  errorDetails String
+  rawData      String?
+  createdAt    DateTime  @default(now())
+
+  @@schema("public")
+}
+
+model ApiKey {
+  id         String   @id @default(uuid())
+  clientName String
+  keyHash    String   @unique
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@schema("public")
+}
+
+// ==========================================
+// SCHEMA: tse
+// ==========================================
+
+model State {
+  uf        String @id
+  name      String
+  cities    City[]
+
+  @@schema("tse")
+}
+
+model City {
+  code             Int                @id
+  name             String
+  uf               String
+  state            State              @relation(fields: [uf], references: [uf])
+  zones            ElectoralZone[]
+  pollingLocations PollingLocation[]
+
+  @@schema("tse")
+}
+
+model ElectoralZone {
+  id               String            @id @default(uuid())
+  zoneNumber       Int
+  cityCode         Int
+  city             City              @relation(fields: [cityCode], references: [code])
+  pollingLocations PollingLocation[]
+
+  @@unique([zoneNumber, cityCode])
+  @@schema("tse")
 }
 
 model Election {
-  id          String        @id @default(uuid())
-  year        Int
-  round       Int
-  type        String        // Ex: "FEDERAL", "MUNICIPAL"
-  description String
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  candidates  Candidate[]
-  sectionVotes SectionVote[]
+  id                         String                       @id @default(uuid())
+  year                       Int
+  round                      Int
+  type                       String                       // Ex: "FEDERAL", "MUNICIPAL"
+  description                String
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+  candidates                 Candidate[]
+  sectionVotes               SectionVote[]
+  performanceByCity          PerformanceByCity[]
+  performanceByLocation      PerformanceByPollingLocation[]
+  performanceBySection       PerformanceBySection[]
 
-  // Constraint para evitar duplicidade de eleição por ano/turno/tipo
   @@unique([year, round, type])
   @@index([year])
+  @@schema("tse")
 }
 
 model Candidate {
-  id              String        @id @default(uuid())
-  electionId      String
-  election        Election      @relation(fields: [electionId], references: [id])
-  electoralNumber String
-  candidateName   String
-  urnName         String
-  role            String        // Ex: "PREFEITO", "VEREADOR"
-  officeCode      Int?
-  officeName      String?
-  uf              String        // Sigla do estado (ex: "SP")
-  partyName       String
-  partyNumber     Int
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  sectionVotes    SectionVote[]
+  id                         String                       @id @default(uuid())
+  electionId                 String
+  election                   Election                     @relation(fields: [electionId], references: [id])
+  electoralNumber            String
+  candidateName              String
+  urnName                    String
+  role                       String                       // Ex: "PREFEITO", "VEREADOR"
+  officeCode                 Int?
+  officeName                 String?
+  uf                         String                       // Sigla do estado (ex: "SP")
+  partyName                  String
+  partyNumber                Int
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+  sectionVotes               SectionVote[]
+  performanceByCity          PerformanceByCity[]
+  performanceByLocation      PerformanceByPollingLocation[]
+  performanceBySection       PerformanceBySection[]
 
-  // Constraint para evitar duplicidade de candidato por eleição/número/cargo
   @@unique([electionId, electoralNumber, role])
-  // Índices para consultas otimizadas
   @@index([uf])
   @@index([electionId])
+  @@schema("tse")
 }
 
 model PollingLocation {
-  id           String             @id @default(uuid())
-  uf           String             // Sigla do estado
-  cityName     String             // Nome do município
-  zoneNumber   Int                // Número da zona eleitoral
-  locationCode Int                // Código do local de votação
-  name         String
-  address      String?
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  sections     ElectoralSection[]
+  id                    String                         @id @default(uuid())
+  uf                    String
+  cityCode              Int
+  city                  City                           @relation(fields: [cityCode], references: [code])
+  zoneNumber            Int
+  locationCode          Int                            // Código do local de votação
+  name                  String
+  address               String?
+  createdAt             DateTime                       @default(now())
+  updatedAt             DateTime                       @updatedAt
+  sections              ElectoralSection[]
+  performanceByLocation PerformanceByPollingLocation[]
+  electoralZoneId       String?
+  electoralZone         ElectoralZone?                 @relation(fields: [electoralZoneId], references: [id])
 
-  // Constraint para evitar duplicidade de local por UF/município/zona/código do local
-  @@unique([uf, cityName, zoneNumber, locationCode])
-  // Índices para consultas otimizadas
+  @@unique([uf, cityCode, zoneNumber, locationCode])
   @@index([uf])
-  @@index([cityName])
+  @@index([cityCode])
   @@index([zoneNumber])
+  @@schema("tse")
 }
 
 model ElectoralSection {
-  id                String          @id @default(uuid())
-  pollingLocationId String
-  pollingLocation   PollingLocation @relation(fields: [pollingLocationId], references: [id])
-  uf                String
-  cityName          String
-  zoneNumber        Int
-  sectionNumber     Int             // Número da seção eleitoral
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  sectionVotes      SectionVote[]
+  id                   String                 @id @default(uuid())
+  pollingLocationId    String
+  pollingLocation      PollingLocation        @relation(fields: [pollingLocationId], references: [id])
+  uf                   String
+  cityName             String
+  zoneNumber           Int
+  sectionNumber        Int                    // Número da seção eleitoral
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  sectionVotes         SectionVote[]
+  performanceBySection PerformanceBySection[]
 
-  // Constraint para evitar duplicidade de seção por UF/município/zona/seção
   @@unique([uf, cityName, zoneNumber, sectionNumber])
-  // Índices para consultas otimizadas
   @@index([uf])
   @@index([cityName])
   @@index([zoneNumber])
   @@index([sectionNumber])
+  @@schema("tse")
 }
 
 model SectionVote {
@@ -110,44 +195,12 @@ model SectionVote {
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
-  // Constraint para evitar duplicidade de votos por eleição/seção/cargo/tipo/número
   @@unique([electionId, electoralSectionId, officeCode, votableType, votableNumber])
-  // Índices para consultas otimizadas
   @@index([electionId, officeCode])
   @@index([electionId, candidateId])
   @@index([electionId, officeCode, votableType])
   @@index([electionId, officeCode, votableNumber])
-}
-
-model ImportJob {
-  id               String        @id @default(uuid())
-  status           String        // Ex: "PENDING", "PROCESSING", "COMPLETED", "FAILED"
-  filename         String
-  fileType         String        // Ex: "CANDIDATOS", "VOTOS_SECAO"
-  totalRecords     Int           @default(0)
-  processedRecords Int           @default(0)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  errors           ImportError[]
-}
-
-model ImportError {
-  id           String    @id @default(uuid())
-  importJobId  String
-  importJob    ImportJob @relation(fields: [importJobId], references: [id])
-  rowNumber    Int
-  errorDetails String
-  rawData      String?
-  createdAt    DateTime  @default(now())
-}
-
-model ApiKey {
-  id         String   @id @default(uuid())
-  clientName String
-  keyHash    String   @unique
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  @@schema("tse")
 }
 
 model SectionElectorateProfile {
@@ -177,8 +230,274 @@ model SectionElectorateProfile {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
-  // Índices para consultas otimizadas
   @@index([uf, cityName])
   @@index([zoneNumber, sectionNumber])
   @@index([electionYear])
+  @@schema("tse")
+}
+
+// ==========================================
+// SCHEMA: mandato
+// ==========================================
+
+model Leader {
+  id            String          @id @default(uuid())
+  tenantId      String          // Isolamento MANDATOPRO
+  name          String
+  phone         String?
+  email         String?
+  region        String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  voters        RegisteredVoter[]
+  campaignEvents CampaignEvent[]
+
+  @@index([tenantId])
+  @@schema("mandato")
+}
+
+model RegisteredVoter {
+  id            String          @id @default(uuid())
+  tenantId      String
+  name          String
+  document      String?
+  phone         String?
+  email         String?
+  uf            String
+  cityCode      Int
+  zoneNumber    Int?
+  sectionNumber Int?
+  address       String?
+  neighborhood  String?
+  latitude      Float?
+  longitude     Float?
+  leaderId      String?
+  leader        Leader?         @relation(fields: [leaderId], references: [id])
+  demands       CitizenDemand[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([tenantId])
+  @@index([uf, cityCode])
+  @@index([leaderId])
+  @@index([latitude, longitude])
+  @@schema("mandato")
+}
+
+model SocialAction {
+  id               String            @id @default(uuid())
+  tenantId         String
+  title            String
+  description      String?
+  date             DateTime
+  address          String?
+  latitude         Float?
+  longitude        Float?
+  status           String            // Ex: "PENDING", "COMPLETED", "CANCELLED"
+  servicesProvided ServiceProvided[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([tenantId])
+  @@index([latitude, longitude])
+  @@schema("mandato")
+}
+
+model ServiceProvided {
+  id             String       @id @default(uuid())
+  tenantId       String
+  citizenName    String
+  description    String
+  cost           Decimal?     @db.Decimal(10, 2)
+  date           DateTime
+  status         String
+  socialActionId String?
+  socialAction   SocialAction? @relation(fields: [socialActionId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([tenantId])
+  @@schema("mandato")
+}
+
+model CitizenDemand {
+  id              String          @id @default(uuid())
+  tenantId        String
+  title           String
+  description     String
+  category        String?
+  status          String
+  priority        String          // Ex: "LOW", "MEDIUM", "HIGH"
+  voterId         String
+  voter           RegisteredVoter @relation(fields: [voterId], references: [id])
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([tenantId])
+  @@index([voterId])
+  @@schema("mandato")
+}
+
+model Campaign {
+  id             String          @id @default(uuid())
+  tenantId       String
+  name           String
+  year           Int
+  targetGoal     String?
+  budget         Decimal?        @db.Decimal(12, 2)
+  events         CampaignEvent[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([tenantId])
+  @@schema("mandato")
+}
+
+model CampaignEvent {
+  id          String    @id @default(uuid())
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id])
+  title       String
+  description String?
+  date        DateTime
+  address     String?
+  latitude    Float?
+  longitude   Float?
+  leaderId    String?
+  leader      Leader?   @relation(fields: [leaderId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([campaignId])
+  @@index([leaderId])
+  @@index([latitude, longitude])
+  @@schema("mandato")
+}
+
+// ==========================================
+// SCHEMA: analytics
+// ==========================================
+
+model TerritorialScore {
+  id            String   @id @default(uuid())
+  tenantId      String
+  uf            String
+  cityCode      Int
+  zoneNumber    Int?
+  sectionNumber Int?
+  score         Float    // Peso de desempenho/influência territorial
+  rank          Int?
+  explanation   String?
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([uf, cityCode])
+  @@schema("analytics")
+}
+
+model PerformanceByCity {
+  id             String    @id @default(uuid())
+  tenantId       String
+  electionId     String
+  election       Election  @relation(fields: [electionId], references: [id])
+  cityCode       Int
+  candidateId    String
+  candidate      Candidate @relation(fields: [candidateId], references: [id])
+  totalVotes     Int
+  votePercentage Float
+  candidateRank  Int?
+  updatedAt      DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([electionId, cityCode])
+  @@index([candidateId])
+  @@schema("analytics")
+}
+
+model PerformanceByPollingLocation {
+  id                String          @id @default(uuid())
+  tenantId          String
+  electionId        String
+  election          Election        @relation(fields: [electionId], references: [id])
+  pollingLocationId String
+  pollingLocation   PollingLocation @relation(fields: [pollingLocationId], references: [id])
+  candidateId       String
+  candidate         Candidate       @relation(fields: [candidateId], references: [id])
+  totalVotes        Int
+  votePercentage    Float
+  candidateRank     Int?
+  updatedAt         DateTime        @updatedAt
+
+  @@index([tenantId])
+  @@index([electionId, pollingLocationId])
+  @@index([candidateId])
+  @@schema("analytics")
+}
+
+model PerformanceBySection {
+  id                 String           @id @default(uuid())
+  tenantId           String
+  electionId         String
+  election           Election         @relation(fields: [electionId], references: [id])
+  electoralSectionId String
+  electoralSection   ElectoralSection @relation(fields: [electoralSectionId], references: [id])
+  candidateId        String
+  candidate          Candidate        @relation(fields: [candidateId], references: [id])
+  totalVotes         Int
+  votePercentage     Float
+  updatedAt          DateTime         @updatedAt
+
+  @@index([tenantId])
+  @@index([electionId, electoralSectionId])
+  @@index([candidateId])
+  @@schema("analytics")
+}
+
+model GrowthOpportunity {
+  id                 String  @id @default(uuid())
+  tenantId           String
+  cityCode           Int
+  zoneNumber         Int?
+  pollingLocationId  String?
+  priorityScore      Float
+  targetAudienceSize Int
+  notes              String?
+  updatedAt          DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([cityCode])
+  @@schema("analytics")
+}
+
+model HeatmapPoint {
+  id          String   @id @default(uuid())
+  tenantId    String
+  cityCode    Int
+  zoneNumber  Int?
+  latitude    Float
+  longitude   Float
+  weight      Float
+  metricType  String   // Ex: "VOTES", "DEMANDS", "LEADERS", "VOTERS"
+  sourceType  String   // Ex: "TSE", "MANDATOPRO"
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([cityCode])
+  @@index([latitude, longitude])
+  @@schema("analytics")
+}
+
+model AiStrategyReport {
+  id              String   @id @default(uuid())
+  tenantId        String
+  title           String
+  prompt          String   @db.Text
+  context         String   @db.Text
+  response        String   @db.Text
+  priorityScore   Float?
+  recommendations String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId])
+  @@schema("analytics")
 }

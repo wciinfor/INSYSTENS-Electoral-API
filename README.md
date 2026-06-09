@@ -99,26 +99,38 @@ npm run importer:dev -- --file ./data/tse/arquivo.csv --type electorate --uf PA 
 
 ---
 
-## 📊 Estrutura de Banco Atualizada
+## 📊 Arquitetura de Banco de Dados Multi-Schema
 
-### 1. Perfil Demográfico do Eleitorado (`SectionElectorateProfile`)
-Armazena dados demográficos detalhados e consolidados por seção eleitoral para fins analíticos:
-- `electionYear`: Ano da eleição.
-- `uf`: Unidade Federativa.
-- `cityCode` / `cityName`: Código e nome do município.
-- `zoneNumber` / `sectionNumber`: Zona e Seção eleitoral.
-- `pollingLocationCode`: Código do local de votação.
-- `gender` / `ageRange` / `education` / `race` / `maritalStatus`: Campos demográficos descritivos e seus respectivos códigos.
-- `votersCount` / `biometricVotersCount` / `disabledVotersCount` / `socialNameVotersCount`: Métricas de contagem de eleitores.
+A base de dados é organizada em quatro schemas lógicos para isolar responsabilidades e garantir escalabilidade:
 
-### 2. Votos de Seção (`SectionVote`)
-Modelagem robusta para conter votos nominais, de legenda, brancos, nulos e anulados, estruturada de forma a evitar colisões entre diferentes cargos na mesma seção:
-- **Agrupamento Chave**: Os votos são sempre unicamente identificados e associados pela combinação de **Eleição**, **Seção Eleitoral**, **Cargo** (`officeCode`) e **Votável** (`votableType` + `votableNumber`).
-- `candidateId`: Opcional (nulo para votos não nominais de legenda, branco, nulo ou anulado).
-- `officeCode` / `officeName`: Código e nome do cargo (evita colisões entre cargos diferentes na mesma seção com números votáveis idênticos).
-- `votableType`: Classificação do voto (`NOMINAL`, `LEGENDA`, `BRANCO`, `NULO`, `ANULADO`).
-- `votableNumber` / `votableName`: Número e nome correspondentes (ex: número do candidato, da legenda, ou "Branco").
-- `partyNumber` / `partyAcronym` / `partyName`: Dados do partido associado.
+### 1. Schema `tse` (Dados Oficiais e Resultados)
+Contém as tabelas de referência e estatísticas extraídas dos dados abertos do TSE:
+- `State` e `City`: Unidades federativas e municípios.
+- `ElectoralZone`: Zonas eleitorais associadas aos municípios.
+- `Election` e `Candidate`: Eleições cadastradas e seus respectivos candidatos.
+- `PollingLocation` e `ElectoralSection`: Locais e seções eleitorais de votação.
+- `SectionVote`: Votação apurada agrupada por eleição, seção, cargo e tipo de voto (Nominal, Legenda, Branco, Nulo, Anulado).
+- `SectionElectorateProfile`: Perfil demográfico consolidado de eleitores por seção (gênero, faixa etária, escolaridade, etc.).
+
+### 2. Schema `mandato` (Dados Internos do MANDATOPRO)
+Contém dados operacionais de campanhas, eleitores engajados e lideranças do mandato do parlamentar (isolados por `tenantId`):
+- `RegisteredVoter`: Cadastro interno de apoiadores/eleitores georreferenciados (latitude/longitude) cruzados com a sua respectiva seção do TSE.
+- `Leader`: Cadastro de lideranças territoriais de apoio.
+- `SocialAction` e `ServiceProvided`: Ações e atendimentos sociais realizados nos territórios.
+- `CitizenDemand`: Demandas, solicitações e reclamações de cidadãos.
+- `Campaign` e `CampaignEvent`: Planejamento de campanhas eleitorais e seus eventos.
+
+### 3. Schema `analytics` (Painéis e Inteligência Geográfica)
+Tabelas e visões consolidadas alimentadas por rotinas analíticas e IA para cruzamento territorial:
+- `TerritorialScore`: Score de influência/desempenho do mandato em cada seção eleitoral.
+- `PerformanceByCity` / `PerformanceByPollingLocation` / `PerformanceBySection`: Resultados históricos consolidados para análise de market share eleitoral.
+- `GrowthOpportunity`: Zonas de alta prioridade com oportunidade de crescimento eleitoral.
+- `HeatmapPoint`: Pontos geográficos (lat/long) com pesos calculados para geração dinâmica de mapas de calor na interface.
+- `AiStrategyReport`: Relatórios estratégicos gerados por IA, armazenando prompt, contexto territorial, scores de prioridade e recomendações geradas.
+
+### 4. Schema `public` (Administrativo)
+- `ImportJob` e `ImportError`: Controle e auditoria de logs dos jobs de ingestão do importador TSE.
+- `ApiKey`: Chaves de autenticação de integração server-to-server (ex: conexão com o MANDATOPRO).
 
 ---
 
