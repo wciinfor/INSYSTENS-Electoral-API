@@ -173,23 +173,21 @@ O **EasyPanel** é baseado no Docker Swarm e gerencia o Traefik como roteador de
    - **Source**: Configure apontando para o seu repositório Git do projeto.
    - **Build**:
      - Selecione o método `Dockerfile`.
-     - Defina o caminho do Dockerfile como `apps/api/Dockerfile`.
+     - Defina o caminho do Dockerfile como `Dockerfile` (na raiz do repositório).
    - **Environment Variables**:
      - Defina `NODE_ENV=production`.
      - Defina `DATABASE_URL` usando o DNS interno criado pelo EasyPanel (ex: `postgresql://electoral_user:senha@electoral-postgres:5432/insystens_electoral`).
      - Defina `REDIS_URL` (ex: `redis://electoral-redis:6379`).
-     - Defina `PORT=3001`.
+     - Defina `PORT=80` (o EasyPanel escuta o container na porta 80 por padrão).
      - Defina `API_KEY_SECRET` com o seu hash de segurança.
    - **Routing**:
-     - Configure a **Porta da Aplicação** como `3001`.
+     - Configure a **Porta da Aplicação** como `80`.
      - Defina o seu subdomínio de produção desejado (o EasyPanel configurará automaticamente o Traefik e gerará o certificado SSL).
-5. **Realizar Deploy**: O EasyPanel executará o build multi-stage baseado no Dockerfile e fará o deploy sem indisponibilidade.
+5. **Realizar Deploy**: O EasyPanel executará o build multi-stage baseado no Dockerfile da raiz e fará o deploy sem indisponibilidade.
 
 ---
 
 ### ⚠️ Nota sobre Dependências Nativas (Prisma + OpenSSL)
-O ambiente de execução do container utiliza a base **Debian (Bookworm) Slim** em substituição ao Alpine. Isso garante a compatibilidade nativa da biblioteca compartilhada de consultas do Prisma (`libquery_engine-linux-musl` vs `debian-openssl`) e a biblioteca de criptografia do sistema OpenSSL 3.0.x, evitando erros de inicialização de conexões e instabilidades em produção.
-
 
 
 
