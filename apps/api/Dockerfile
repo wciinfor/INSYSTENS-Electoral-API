@@ -1,7 +1,10 @@
 # Build Stage
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /usr/src/app
+
+# Instala dependências de compilação necessárias no Debian-slim
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Copia configurações de dependências do monorepo
 COPY package.json package-lock.json ./
@@ -29,9 +32,12 @@ ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy?schema=public"
 RUN npm run prisma:generate -w @electoral-api/api
 
 # Runtime Stage
-FROM node:20-alpine
+FROM node:20-bookworm-slim
 
 WORKDIR /usr/src/app
+
+# Instala bibliotecas nativas compartilhadas OpenSSL no container de runtime
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Copia as dependências de produção e o build final do builder
 COPY --from=builder /usr/src/app/node_modules ./node_modules

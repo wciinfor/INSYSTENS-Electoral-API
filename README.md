@@ -185,5 +185,11 @@ O **EasyPanel** é baseado no Docker Swarm e gerencia o Traefik como roteador de
      - Defina o seu subdomínio de produção desejado (o EasyPanel configurará automaticamente o Traefik e gerará o certificado SSL).
 5. **Realizar Deploy**: O EasyPanel executará o build multi-stage baseado no Dockerfile e fará o deploy sem indisponibilidade.
 
+---
+
+### ⚠️ Nota sobre Dependências Nativas (Prisma + OpenSSL)
+O ambiente de execução do container utiliza a base **Debian (Bookworm) Slim** em substituição ao Alpine. Isso garante a compatibilidade nativa da biblioteca compartilhada de consultas do Prisma (`libquery_engine-linux-musl` vs `debian-openssl`) e a biblioteca de criptografia do sistema OpenSSL 3.0.x, evitando erros de inicialização de conexões e instabilidades em produção.
+
+
 
 
