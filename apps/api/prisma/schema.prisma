@@ -45,6 +45,72 @@ model ApiKey {
   clientName String
   keyHash    String   @unique
   isActive   Boolean  @default(true)
+  accountId  String
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@schema("public")
+}
+
+model Account {
+  id                String             @id @default(uuid())
+  name              String
+  slug              String             @unique
+  type              String             // Ex: "PARLAMENTAR", "PARTIDO", "CONSULTORIA"
+  isActive          Boolean            @default(true)
+  ssoId             String?            @unique // Para futura integração SSO com MandatoPro
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  apiKeys           ApiKey[]
+  politicalProfile  PoliticalProfile?
+  electionInterests ElectionInterest[]
+  automaticFilters  AutomaticFilter[]
+
+  @@schema("public")
+}
+
+model PoliticalProfile {
+  id              String     @id @default(uuid())
+  accountId       String     @unique
+  account         Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  candidateName   String?
+  candidateNumber String?
+  role            String?    // Ex: "DEPUTADO_FEDERAL", "VEREADOR"
+  party           String?
+  uf              String?
+  cityCode        Int?
+  candidateId     String?    // Vinculo futuro com dados oficiais do TSE
+  candidate       Candidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@schema("public")
+}
+
+model ElectionInterest {
+  id         String    @id @default(uuid())
+  accountId  String
+  account    Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  electionId String?
+  election   Election? @relation(fields: [electionId], references: [id], onDelete: SetNull)
+  year       Int
+  round      Int
+  type       String    // Ex: "FEDERAL", "MUNICIPAL"
+  createdAt  DateTime  @default(now())
+
+  @@unique([accountId, year, round, type])
+  @@schema("public")
+}
+
+model AutomaticFilter {
+  id         String   @id @default(uuid())
+  accountId  String
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  filterType String   // Ex: "GEOGRAPHIC", "DEMOGRAPHIC"
+  field      String   // Ex: "uf", "cityCode"
+  operator   String   // Ex: "EQUALS", "IN"
+  value      String   // Valor em formato string (ex: "SP" ou ["SP"])
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -98,6 +164,7 @@ model Election {
   performanceByCity          PerformanceByCity[]
   performanceByLocation      PerformanceByPollingLocation[]
   performanceBySection       PerformanceBySection[]
+  electionInterests          ElectionInterest[]
 
   @@unique([year, round, type])
   @@index([year])
@@ -123,6 +190,7 @@ model Candidate {
   performanceByCity          PerformanceByCity[]
   performanceByLocation      PerformanceByPollingLocation[]
   performanceBySection       PerformanceBySection[]
+  politicalProfiles          PoliticalProfile[]
 
   @@unique([electionId, electoralNumber, role])
   @@index([uf])
@@ -501,3 +569,177 @@ model AiStrategyReport {
   @@index([tenantId])
   @@schema("analytics")
 }
+
+model StrategicRecord {
+  tenantId  String   @default("default")
+  id        String
+  entity    String
+  source    String
+  data      Json
+  metadata  Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([tenantId, id])
+  @@index([tenantId])
+  @@index([entity])
+  @@index([source])
+  @@schema("analytics")
+}
+
+model GraphNodeRecord {
+  tenantId   String   @default("default")
+  id         String
+  type       String
+  properties Json
+  metadata   Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  outgoingEdges GraphEdgeRecord[] @relation("FromNode")
+  incomingEdges GraphEdgeRecord[] @relation("ToNode")
+
+  @@id([tenantId, id])
+  @@index([tenantId])
+  @@index([type])
+  @@schema("analytics")
+}
+
+model GraphEdgeRecord {
+  tenantId  String   @default("default")
+  id        String
+  from      String
+  to        String
+  relation  String
+  weight    Float    @default(1.0)
+  metadata  Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fromNode GraphNodeRecord @relation("FromNode", fields: [tenantId, from], references: [tenantId, id], onDelete: Cascade)
+  toNode   GraphNodeRecord @relation("ToNode", fields: [tenantId, to], references: [tenantId, id], onDelete: Cascade)
+
+  @@id([tenantId, id])
+  @@index([tenantId])
+  @@index([tenantId, from])
+  @@index([tenantId, to])
+  @@index([relation])
+  @@schema("analytics")
+}
+
+model StrategicSignalRecord {
+  tenantId   String   @default("default")
+  id         String
+  type       String
+  severity   String
+  confidence Float    @default(1.0)
+  context    Json
+  reason     String   @db.Text
+  metadata   Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@id([tenantId, id])
+  @@index([tenantId])
+  @@index([tenantId, type])
+  @@index([tenantId, severity])
+  @@schema("analytics")
+}
+
+model DecisionRecord {
+  tenantId           String
+  id                 String
+  category           String
+  priority           String
+  title              String
+  summary            String   @db.Text
+  expectedImpact     String   @db.Text
+  confidence         Float    @default(1.0)
+  reasons            Json
+  recommendedActions Json
+  relatedSignals     Json
+  metadata           Json
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@id([tenantId, id])
+  @@index([tenantId])
+  @@index([tenantId, category])
+  @@index([tenantId, priority])
+  @@schema("analytics")
+}
+
+model DecisionAuditEventRecord {
+  id               String   @default(uuid())
+  tenantId         String
+  actorId          String
+  actorType        String
+  decisionId       String
+  operation        String
+  result           String
+  reason           String?  @db.Text
+  source           String   @default("system")
+  decisionCategory String?
+  decisionPriority String?
+  relatedSignals   Json?
+  details          Json?
+  timestamp        DateTime @default(now())
+
+  @@id([tenantId, id])
+  @@index([tenantId])
+  @@index([tenantId, decisionId])
+  @@index([tenantId, actorId])
+  @@index([tenantId, operation])
+  @@schema("analytics")
+}
+
+model ActionProposalRecord {
+  tenantId       String
+  id             String
+  decisionId     String
+  category       String
+  priority       String
+  title          String
+  description    String   @db.Text
+  expectedImpact String   @db.Text
+  estimatedGain  Float    @default(0)
+  timeframe      String
+  status         String   @default("PROPOSED")
+  metadata       Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@id([tenantId, id])
+  @@index([tenantId])
+  @@index([tenantId, decisionId])
+  @@index([tenantId, status])
+  @@index([tenantId, priority])
+  @@schema("analytics")
+}
+
+model ActionExecutionRecord {
+  tenantId      String
+  id            String
+  proposalId    String
+  decisionId    String
+  attemptNumber Int      @default(1)
+  status        String   @default("PENDING")
+  mode          String   @default("SIMULATED")
+  executedBy    Json
+  result        Json?
+  error         String?  @db.Text
+  dispatchedAt  DateTime?
+  completedAt   DateTime?
+  metadata      Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@id([tenantId, id])
+  @@unique([tenantId, proposalId, attemptNumber])
+  @@index([tenantId])
+  @@index([tenantId, proposalId])
+  @@index([tenantId, status])
+  @@schema("analytics")
+}
+
+

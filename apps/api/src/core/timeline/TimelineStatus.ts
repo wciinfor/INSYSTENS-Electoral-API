@@ -1,0 +1,7 @@
+export enum TimelineStatus {
+  PLANNED = 'PLANNED',
+  SUGGESTED = 'SUGGESTED',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+  EXPIRED = 'EXPIRED',
+}
